@@ -1,0 +1,12 @@
+{application, cowboy_otel, [
+    {description, "Cowboy stream and middleware for opentelemetry http server spans"},
+    {vsn, "0.1.0"},
+    {applications, [
+        kernel,
+        stdlib,
+        opentelemetry,
+        opentelemetry_api,
+        cowboy
+    ]},
+    {licenses, ["ISC license"]}
+]}.
