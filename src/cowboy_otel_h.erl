@@ -1,3 +1,6 @@
+%%% @doc A cowboy stream handler that extracts spans from http headers
+%%% and starts and ends opentelemetry span.
+
 -module(cowboy_otel_h).
 -behavior(cowboy_stream).
 
@@ -19,6 +22,7 @@
 -include_lib("opentelemetry_api/include/otel_tracer.hrl").
 -include_lib("opentelemetry_api/include/opentelemetry.hrl").
 
+%%% @doc Start the opentelemetry span.
 -spec init(cowboy_stream:streamid(), cowboy_req:req(), cowboy:opts()) ->
     {cowboy_stream:commands(), state()}.
 init(StreamID, Req0, Opts) ->
@@ -49,6 +53,7 @@ init(StreamID, Req0, Opts) ->
     {Commands, Next} = cowboy_stream:init(StreamID, Req, Opts),
     {Commands, #state{next = Next, span = SpanCtx}}.
 
+%%% @doc Does nothing.
 -spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State) ->
     {cowboy_stream:commands(), State}
 when
@@ -57,6 +62,7 @@ data(StreamID, IsFin, Data, State = #state{next = Next}) ->
     {Commands, Next0} = cowboy_stream:data(StreamID, IsFin, Data, Next),
     {Commands, State#state{next = Next0}}.
 
+%%% @doc Intercept the response command, and then set the status code span attribute.
 -spec info(cowboy_stream:streamid(), any(), State) ->
     {cowboy_stream:commands(), State}
 when
@@ -76,12 +82,14 @@ info(StreamID, Info, State = #state{next = Next}) ->
     {Commands, Next0} = cowboy_stream:info(StreamID, Info, Next),
     {Commands, State#state{next = Next0}}.
 
+%%% @doc End the opentelemetry span.
 -spec terminate(cowboy_stream:streamid(), cowboy_stream:reason(), state()) -> any().
 terminate(StreamID, Reason, #state{next = Next, span = SpanCtx}) ->
     Termination = cowboy_stream:terminate(StreamID, Reason, Next),
     otel_tracer:set_current_span(otel_span:end_span(SpanCtx, undefined)),
     Termination.
 
+%%% @doc Does nothing.
 -spec early_error(
     cowboy_stream:streamid(),
     cowboy_stream:reason(),

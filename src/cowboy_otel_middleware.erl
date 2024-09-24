@@ -1,3 +1,4 @@
+%%% @doc A cowboy middleware that attach the cowboy_otel_h span ctx to itself (the request process).
 -module(cowboy_otel_middleware).
 -behaviour(cowboy_middleware).
 
@@ -8,6 +9,7 @@
 -include_lib("opentelemetry_api/include/otel_tracer.hrl").
 -include_lib("opentelemetry_api/include/opentelemetry.hrl").
 
+%%% @doc Attach span ctx to request process. Also rename span and set http.route attribute if we have bindings.
 -spec execute(Req, Env) -> {ok, Req, Env} when
     Req :: cowboy_req:req(),
     Env :: cowboy_middleware:env().
