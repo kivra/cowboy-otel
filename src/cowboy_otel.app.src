@@ -8,5 +8,6 @@
         opentelemetry_api,
         cowboy
     ]},
-    {licenses, ["ISC"]}
+    {licenses, ["ISC"]},
+    {links, [{"GitHub", "https://github.com/kivra/cowboy-otel"}]}
 ]}.
