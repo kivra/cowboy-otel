@@ -8,5 +8,5 @@
         opentelemetry_api,
         cowboy
     ]},
-    {licenses, ["ISC license"]}
+    {licenses, ["ISC"]}
 ]}.
