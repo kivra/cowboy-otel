@@ -28,26 +28,13 @@
 init(StreamID, Req0, Opts) ->
     Headers = maps:get(headers, Req0),
     extract_otel(Headers),
-    {RemoteIP, _Port} = maps:get(peer, Req0),
-    Method = maps:get(method, Req0),
-    Path = maps:get(path, Req0),
-    SpanName = iolist_to_binary([Method, " ", Path]),
-    SpanAttrs =
-        #{
-            <<"correlation_id">> => get_header_value(<<"x-correlation-id">>, Headers),
-            <<"http.host">> => maps:get(host, Req0),
-            <<"http.host.port">> => maps:get(port, Req0),
-            <<"http.method">> => Method,
-            <<"http.scheme">> => maps:get(scheme, Req0),
-            <<"http.target">> => Path,
-            <<"http.user_agent">> => get_header_value(<<"user-agent">>, Headers),
-            <<"net.host.ip">> => iolist_to_binary(inet:ntoa(RemoteIP))
-        },
-    SpanOpts = #{
-        attributes => SpanAttrs,
-        kind => ?SPAN_KIND_SERVER
-    },
-    SpanCtx = ?start_span(SpanName, SpanOpts),
+    SpanCtx =
+        case ?is_recording() of
+            false ->
+                maybe_start_span(Req0, Opts);
+            true ->
+                start_span(Req0)
+        end,
     Ctx = otel_ctx:get_current(),
     Req = Req0#{otel_ctx => Ctx, otel_span_ctx => SpanCtx},
     {Commands, Next} = cowboy_stream:init(StreamID, Req, Opts),
@@ -115,3 +102,35 @@ get_header_value(HeaderName, Headers) ->
 
 list_header_names(Headers) ->
     maps:keys(Headers).
+
+maybe_start_span(#{path := Path} = Req0, #{otel_exclude_paths := ExcludedPaths}) when
+    is_list(ExcludedPaths)
+->
+    case lists:member(Path, ExcludedPaths) of
+        true ->
+            undefined;
+        false ->
+            start_span(Req0)
+    end;
+maybe_start_span(Req0, _Opts) ->
+    start_span(Req0).
+
+start_span(#{method := Method, path := Path} = Req0) ->
+    #{headers := Headers, host := Host, port := Port, peer := Peer, scheme := Scheme} = Req0,
+    {RemoteIP, _Port} = Peer,
+    SpanOpts = #{
+        kind => ?SPAN_KIND_SERVER,
+        attributes =>
+            #{
+                <<"correlation_id">> => get_header_value(<<"x-correlation-id">>, Headers),
+                <<"http.host">> => Host,
+                <<"http.host.port">> => Port,
+                <<"http.method">> => Method,
+                <<"http.scheme">> => Scheme,
+                <<"http.target">> => Path,
+                <<"http.user_agent">> => get_header_value(<<"user-agent">>, Headers),
+                <<"net.host.ip">> => iolist_to_binary(inet:ntoa(RemoteIP))
+            }
+    },
+    SpanName = iolist_to_binary([Method, " ", Path]),
+    ?start_span(SpanName, SpanOpts).
