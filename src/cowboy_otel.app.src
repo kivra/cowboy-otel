@@ -1,6 +1,6 @@
 {application, cowboy_otel, [
     {description, "Cowboy stream and middleware for opentelemetry http server spans"},
-    {vsn, "0.1.1"},
+    {vsn, "0.2.0"},
     {applications, [
         kernel,
         stdlib,
