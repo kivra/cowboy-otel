@@ -34,7 +34,9 @@ http_method(#{method := Method}) -> Method.
 http_route(#{path := Path, bindings := Bindings}) ->
     RouteFun = fun
         (_, <<>>, Acc) -> Acc;
-        (K, V, Acc) -> binary:replace(Acc, V, <<":", (atom_to_binary(K, utf8))/binary>>)
+        (K, V, Acc) when is_binary(K) -> binary:replace(Acc, V, <<":", K/binary>>);
+        (K, V, Acc) when is_atom(K) -> binary:replace(Acc, V, <<":", (atom_to_binary(K, utf8))/binary>>);
+        (_, _, Acc) -> Acc
     end,
     maps:fold(RouteFun, Path, Bindings);
 http_route(_) ->
