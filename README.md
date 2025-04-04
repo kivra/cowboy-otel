@@ -28,6 +28,8 @@ a span called `<<"GET /metrics">>` with configuration:
     ]}
 ```
 
+This sampler will exclude spans of kind server whose name is in the provided list.
+
 ## Tests
 
 FIXME: Add test-suite  
