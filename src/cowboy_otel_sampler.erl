@@ -16,8 +16,8 @@ setup(String) ->
 description(#{exclude := List}) ->
     iolist_to_binary(io_lib:format("Exclude spans from set ~p", [List])).
 
-should_sample(_Ctx, _TraceId, _Links, Name, _Kind, _Attrs, #{exclude := List}) ->
-    case lists:member(Name, List) of
-        false -> {?RECORD_AND_SAMPLE, [], []};
+should_sample(_Ctx, _TraceId, _Links, Name, Kind, _Attrs, #{exclude := List}) ->
+    case Kind == server andalso not lists:member(Name, List) of
+        true -> {?RECORD_AND_SAMPLE, [], []};
         _ -> {?DROP, [], []}
     end.
