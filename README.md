@@ -17,6 +17,19 @@ span from the stream process in the process executing middlewares and your cowbo
 
 Goal is to follow https://opentelemetry.io/docs/specs/semconv/http/http-spans/
 
+## Sampler
+
+If sampling needs are simple then `cowboy_otel_sampler` can be useful to exclude
+a span called `<<"GET /metrics">>` with configuration:
+
+```
+{opentelemetry, [
+    {sampler, {parent_based, #{root => {cowboy_otel_sampler, [<<"GET /metrics">>]}}}}
+    ]}
+```
+
+This sampler will exclude spans of kind server whose name is in the provided list.
+
 ## Tests
 
 FIXME: Add test-suite  
