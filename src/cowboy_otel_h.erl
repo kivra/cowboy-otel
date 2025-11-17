@@ -14,7 +14,8 @@
 
 -record(state, {
     next :: any(),
-    span :: opentelemetry:span_ctx()
+    span :: opentelemetry:span_ctx(),
+    prev_ctx_token :: otel_ctx:token() | undefined
 }).
 
 -type state() :: #state{}.
@@ -27,7 +28,7 @@
     {cowboy_stream:commands(), state()}.
 init(StreamID, Req0, Opts) ->
     Headers = maps:get(headers, Req0),
-    extract_otel(Headers),
+    PrevCtxToken = extract_otel(Headers),
     {RemoteIP, _Port} = maps:get(peer, Req0),
     Method = maps:get(method, Req0),
     Path = maps:get(path, Req0),
@@ -51,7 +52,7 @@ init(StreamID, Req0, Opts) ->
     Ctx = otel_ctx:get_current(),
     Req = Req0#{otel_ctx => Ctx, otel_span_ctx => SpanCtx},
     {Commands, Next} = cowboy_stream:init(StreamID, Req, Opts),
-    {Commands, #state{next = Next, span = SpanCtx}}.
+    {Commands, #state{next = Next, span = SpanCtx, prev_ctx_token = PrevCtxToken}}.
 
 %%% @doc Does nothing.
 -spec data(cowboy_stream:streamid(), cowboy_stream:fin(), cowboy_req:resp_body(), State) ->
@@ -84,9 +85,10 @@ info(StreamID, Info, State = #state{next = Next}) ->
 
 %%% @doc End the opentelemetry span.
 -spec terminate(cowboy_stream:streamid(), cowboy_stream:reason(), state()) -> any().
-terminate(StreamID, Reason, #state{next = Next, span = SpanCtx}) ->
+terminate(StreamID, Reason, #state{next = Next, span = SpanCtx, prev_ctx_token = PrevCtxToken}) ->
     Termination = cowboy_stream:terminate(StreamID, Reason, Next),
-    otel_tracer:set_current_span(otel_span:end_span(SpanCtx, undefined)),
+    _ = otel_tracer:set_current_span(otel_span:end_span(SpanCtx, undefined)),
+    otel_ctx:detach(PrevCtxToken),
     Termination.
 
 %%% @doc Does nothing.
