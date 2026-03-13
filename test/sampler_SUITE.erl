@@ -37,7 +37,6 @@ end_per_group(sampler, _Config) ->
     ok.
 
 init_per_testcase(sampled_spans, Config) ->
-    ct:pal("All registerd processes ~p", [erlang:registered()]),
     %%sys:trace(otel_simple_processor_global, true),
     Tid = ets:new(export_tab, [
         public,
