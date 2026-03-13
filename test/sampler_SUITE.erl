@@ -10,55 +10,63 @@
 -include_lib("opentelemetry/include/otel_span.hrl").
 
 all() ->
-    [sampled_spans].
+    [{group, sampler}].
+
+groups() ->
+    [{sampler, [], [sampled_spans]}].
 
 init_per_suite(Config) ->
     application:load(opentelemetry),
-    Sampler = {parent_based, #{root => {cowboy_otel_sampler, [<<"GET /exclude">>]}}},
-    ExporterSpec = {otel_exporter_stdout, []},
-    Processor = {otel_simple_processor, #{exporter => ExporterSpec}},
-    application:set_env(opentelemetry, sampler, Sampler),
-    application:set_env(opentelemetry, processors, [Processor]),
-    {ok, _} = application:ensure_all_started(opentelemetry),
-    [
-        {exporter, ExporterSpec}
-        | Config
-    ].
+    Config.
 
 end_per_suite(_Config) ->
-    _ = application:stop(opentelemetry),
     _ = application:unload(opentelemetry),
     ok.
 
+init_per_group(sampler, Config) ->
+    application:set_env(opentelemetry, span_processors, otel_simple_processor),
+    application:set_env(opentelemetry, traces_exporter, {otel_exporter_stdout, []}),
+    CowboySampler = {cowboy_otel_sampler, #{'http.route' => <<"^(/metrics|/heartbeat)$">>}},
+    Sampler = {parent_based, #{root => CowboySampler}},
+    application:set_env(opentelemetry, sampler, Sampler),
+    {ok, _} = application:ensure_all_started(opentelemetry),
+    Config.
+
+end_per_group(sampler, _Config) ->
+    _ = application:stop(opentelemetry),
+    ok.
+
 init_per_testcase(sampled_spans, Config) ->
+    ct:pal("All registerd processes ~p", [erlang:registered()]),
+    %%sys:trace(otel_simple_processor_global, true),
     Tid = ets:new(export_tab, [
         public,
         duplicate_bag,
         {keypos, #span.trace_id}
     ]),
-    otel_simple_processor:set_exporter(otel_exporter_tab, Tid),
-    %% sys:trace(otel_simple_processor_global, true),
+    otel_simple_processor:set_exporter(otel_exporter_tab, Tid), 
     [{tid, Tid} | Config].
 
 end_per_testcase(sampled_spans, Config) ->
-    {Exporter, ExporterSpec} = ?config(exporter, Config),
-    otel_simple_processor:set_exporter(Exporter, ExporterSpec),
-    %% sys:trace(otel_simple_processor_global, false),
     Tid = ?config(tid, Config),
+    ct:pal("In sampled table ~n~p", [ets:tab2list(Tid)]),
     ets:delete(Tid),
+    sys:trace(otel_simple_processor_global, false),
     ok.
 
 sampled_spans(Config) ->
     Tid = ?config(tid, Config),
 
-    SpanCtx1 = mock_http_server_span(<<"GET">>, <<"/pre/success">>),
-    SpanCtx2 = mock_http_server_span(<<"GET">>, <<"/exclude">>),
-    SpanCtx3 = mock_http_server_span(<<"GET">>, <<"/post/success">>),
+    SpanCtx1 = mock_http_server_span(<<"GET">>, <<"/pre/unfiltered">>),
+    SpanCtxGone1 = mock_http_server_span(<<"GET">>, <<"/metrics">>),
+    SpanCtxGone2 = mock_http_server_span(<<"GET">>, <<"/heartbeat">>),
+    SpanCtx2 = mock_http_server_span(<<"GET">>, <<"/post/unfiltered">>),
 
     ?assertEqual(2 * 2, ets:info(Tid, size)),
     ?assert(ets:member(Tid, otel_span:trace_id(SpanCtx1))),
-    ?assert(not ets:member(Tid, otel_span:trace_id(SpanCtx2))),
-    ?assert(ets:member(Tid, otel_span:trace_id(SpanCtx3))),
+    ?assert(not ets:member(Tid, otel_span:trace_id(SpanCtxGone1))),
+    ?assert(not ets:member(Tid, otel_span:trace_id(SpanCtxGone2))),
+    ?assert(ets:member(Tid, otel_span:trace_id(SpanCtx2))),
 
     ok.
 
@@ -68,8 +76,8 @@ mock_http_server_span(Method, Route) ->
         #{
             kind => server,
             attributes => #{
-                <<"http.method">> => Method,
-                <<"http.route">> => Route
+                'http.method' => Method,
+                'http.route' => Route
             }
         },
     ?with_span(
