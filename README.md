@@ -19,16 +19,18 @@ Goal is to follow https://opentelemetry.io/docs/specs/semconv/http/http-spans/
 
 ## Sampler
 
-If sampling needs are simple then `cowboy_otel_sampler` can be useful to exclude
-a span called `<<"GET /metrics">>` with configuration:
+The `cowboy_otel_sampler` supports dropping traces with by any named attribute matching a regexp.
+
+If a single attribute match, then the span is dropped.
+
+Here is a way to apply it only for root spans, i.e. if it is a health check.
 
 ```
 {opentelemetry, [
-    {sampler, {parent_based, #{root => {cowboy_otel_sampler, [<<"GET /metrics">>]}}}}
+    {sampler, {parent_based, #{root => {cowboy_otel_sampler, #{'http.route' => <<"^/livez">>}}}}}
     ]}
 ```
 
-This sampler will exclude spans of kind server whose name is in the provided list.
 
 ## Tests
 
