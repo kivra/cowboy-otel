@@ -77,6 +77,7 @@ info(
         <<"http.response.status_code">> => Code
     },
     otel_span:set_attributes(SpanCtx, Attributes),
+    maybe_set_error_status(SpanCtx, Code),
     {Commands, Next0} = cowboy_stream:info(StreamID, Info, Next),
     {Commands, State#state{next = Next0}};
 info(StreamID, Info, State = #state{next = Next}) ->
@@ -104,6 +105,13 @@ when
     Resp :: cowboy_stream:resp_command().
 early_error(StreamID, Reason, PartialReq, {_, _Status, _Headers, _} = Resp, Opts) ->
     cowboy_stream:early_error(StreamID, Reason, PartialReq, Resp, Opts).
+
+%% Mark the span as errored for server errors (5xx). Client errors (4xx) are
+%% left with an unset status per OTel HTTP semantic conventions for server spans.
+maybe_set_error_status(SpanCtx, Code) when Code >= 500 ->
+    otel_span:set_status(SpanCtx, ?OTEL_STATUS_ERROR);
+maybe_set_error_status(_SpanCtx, _Code) ->
+    ok.
 
 %% Extract and start opentelemetry span
 extract_otel(Headers) ->
